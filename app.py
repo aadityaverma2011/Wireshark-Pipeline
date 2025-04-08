@@ -98,6 +98,7 @@ def run_analysis(filepath):
     def update_progress(value):
         progress_var.set(value)
         progress_bar.update_idletasks()
+        progress_label.config(text=f"Processing... {value}% complete" if value < 100 else "Done!")
 
     try:
         df = process_pcap(filepath, update_progress)
@@ -124,6 +125,7 @@ def run_analysis(filepath):
         messagebox.showerror("Error", f"Something went wrong:\n{str(e)}")
     finally:
         progress_var.set(0)
+        progress_label.config(text="Waiting for file...")
 
 def select_pcap():
     filepath = filedialog.askopenfilename(filetypes=[("PCAPNG files", "*.pcapng")])
@@ -164,6 +166,9 @@ btn_pcap.grid(row=0, column=0, padx=10)
 
 btn_csv = tk.Button(frame, text="Select CSV", command=select_csv, font=("Helvetica", 14), width=15)
 btn_csv.grid(row=0, column=1, padx=10)
+
+progress_label = tk.Label(root, text="Waiting for file...", font=("Helvetica", 10))
+progress_label.place(relx=0.5, rely=0.63, anchor="center")
 
 progress_var = tk.IntVar()
 progress_bar = ttk.Progressbar(root, variable=progress_var, maximum=100, length=400)
