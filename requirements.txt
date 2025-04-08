@@ -1,0 +1,11 @@
+flask
+pandas
+scikit-learn
+joblib
+pyshark
+tqdm
+scipy
+nest_asyncio
+
+
+#sudo apt-get install -y tshark
