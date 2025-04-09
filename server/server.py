@@ -24,7 +24,6 @@ def train_model():
         df = pd.read_csv(file)
         print("[DEBUG] Columns in uploaded CSV:", list(df.columns)) 
         selected_features = ['Rate', 'Unique Source Ports', 'Entropy Difference', 'Source Port Entropy', 'Total Flows']
-
         target = 'attack_type'
 
         print("[INFO] Validating required columns...")
@@ -32,9 +31,20 @@ def train_model():
             print("[ERROR] Missing required columns in the CSV file")
             return jsonify({'error': 'Missing required columns in the CSV file'}), 400
 
+        # Append to dataset.csv
+        dataset_path = 'dataset.csv'
+        if os.path.exists(dataset_path):
+            print("[INFO] Appending to existing dataset.csv...")
+            existing_df = pd.read_csv(dataset_path)
+            df = pd.concat([existing_df, df], ignore_index=True)
+        else:
+            print("[INFO] Creating new dataset.csv...")
+        df.to_csv(dataset_path, index=False)
+
         print("[INFO] Preparing training and test datasets...")
-        X = df[selected_features]
-        y = df[target]
+        full_df = pd.read_csv(dataset_path)
+        X = full_df[selected_features]
+        y = full_df[target]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
         print("[INFO] Training Random Forest model...")
