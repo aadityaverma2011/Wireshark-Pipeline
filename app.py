@@ -4,8 +4,8 @@ import pyshark
 import math
 from datetime import datetime
 import pandas as pd
+import numpy as np
 from collections import defaultdict
-from scipy.stats import entropy
 import nest_asyncio
 import threading
 import requests
@@ -13,9 +13,18 @@ import requests
 nest_asyncio.apply()
 
 # ---------- Packet feature helpers ----------
-def calculate_entropy(data):
-    value_counts = pd.Series(data).value_counts(normalize=True)
-    return entropy(value_counts, base=2)
+def calculate_entropy_base10(counts):
+    if not counts:
+        return 0.0
+    freq_map = defaultdict(int)
+    for count in counts:
+        freq_map[count] += 1
+    total = len(counts)
+    entropy = 0.0
+    for frequency in freq_map.values():
+        probability = frequency / total
+        entropy -= probability * math.log(probability, 10)
+    return entropy
 
 def process_pcap(file_path, update_progress, interval=30):
     packet_count = sum(1 for _ in pyshark.FileCapture(file_path, keep_packets=False))
@@ -57,38 +66,31 @@ def process_pcap(file_path, update_progress, interval=30):
         group_start_time = float(start_time) + group * interval
         group_end_time = float(start_time) + (group + 1) * interval
 
-        durations = []
-        total_packets = 0
-        src_ports = []
-        dst_ports = []
+        flow_map = defaultdict(list)
 
         for flow_key, timestamp, packet_size in group_packets:
-            _, _, src_port, dst_port, _, _ = flow_key
-            durations.append(packet_size)
-            total_packets += 1
-            if src_port != "NA":
-                src_ports.append(src_port)
-            if dst_port != "NA":
-                dst_ports.append(dst_port)
+            flow_map[flow_key].append(packet_size)
+
+        flow_durations = [sum(pkts) for pkts in flow_map.values()]
+        packet_counts = [len(pkts) for pkts in flow_map.values()]
+
+        flow_count = len(flow_map)
+        rate = sum(packet_counts) / interval if interval > 0 else 0
+        entropy_val = calculate_entropy_base10(packet_counts)
+        flow_type = "scanning" if flow_count > 1000 and rate < 0.35 and entropy_val < 0.32 else "attack"
 
         results.append({
-            "Group ID": group,
-            "Start Time": datetime.fromtimestamp(group_start_time).strftime('%Y-%m-%d %H:%M:%S'),
-            "End Time": datetime.fromtimestamp(group_end_time).strftime('%Y-%m-%d %H:%M:%S'),
-            "Maximum Duration": max(durations) if durations else 0,
-            "Mean Duration": sum(durations) / len(durations) if durations else 0,
-            "Standard Deviation": pd.Series(durations).std() if durations else 0,
-            "Total Duration": sum(durations),
-            "Total Packets": total_packets,
-            "Rate": total_packets / interval if interval > 0 else 0,
-            "Unique Source Ports": len(set(src_ports)),
-            "Unique Destination Ports": len(set(dst_ports)),
-            "Total Source Ports": len(src_ports),
-            "Total Destination Ports": len(dst_ports),
-            "Source Port Entropy": calculate_entropy(src_ports) if src_ports else 0,
-            "Destination Port Entropy": calculate_entropy(dst_ports) if dst_ports else 0,
-            "Entropy Difference": (calculate_entropy(src_ports) - calculate_entropy(dst_ports)) if src_ports and dst_ports else 0,
-            "Total Flows": len(set(flow_key for flow_key, _, _ in group_packets))
+            "FlowCount": flow_count,
+            "MinDuration": min(flow_durations) if flow_durations else 0,
+            "MaxDuration": max(flow_durations) if flow_durations else 0,
+            "MeanDuration": np.mean(flow_durations) if flow_durations else 0,
+            "Variance": np.var(flow_durations) if flow_durations else 0,
+            "StdDeviation": np.std(flow_durations) if flow_durations else 0,
+            "TotalDuration": sum(flow_durations),
+            "SumPackets": sum(packet_counts),
+            "Rate": rate,
+            "Entropy": entropy_val,
+            "Type": flow_type
         })
 
     return pd.DataFrame(results)

@@ -23,8 +23,13 @@ def train_model():
         print("[INFO] Reading CSV file...")
         df = pd.read_csv(file)
         print("[DEBUG] Columns in uploaded CSV:", list(df.columns)) 
-        selected_features = ['Rate', 'Unique Source Ports', 'Entropy Difference', 'Source Port Entropy', 'Total Flows']
-        target = 'attack_type'
+
+        selected_features = [
+            "FlowCount", "MinDuration", "MaxDuration", "MeanDuration", 
+            "Variance", "StdDeviation", "TotalDuration", "SumPackets", 
+            "Rate", "Entropy"
+        ]
+        target = "Type"
 
         print("[INFO] Validating required columns...")
         if not all(col in df.columns for col in selected_features + [target]):
